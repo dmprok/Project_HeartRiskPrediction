@@ -1,0 +1,8 @@
+.ipynb_checkpoints/
+.idea/
+.venv/
+__pycache__/
+heart_test.csv
+heart_test_prediction.csv
+heart_train.csv
+log.txt
