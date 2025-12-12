@@ -5,4 +5,5 @@ __pycache__/
 heart_test.csv
 heart_test_prediction.csv
 heart_train.csv
+heart_train_prediction.csv
 log.txt

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Прогнозирование риска сердечного приступа</title>
+</head>
+<body>
+    <h1>Загрузите CSV-файл для анализа:</h1>
+    <form action="/predict" method="post" enctype="multipart/form-data">
+        <label for="file">Выберите файл CSV:</label><br/>
+        <input type="file" id="file" name="file"/><br/><br/>
+        <button type="submit">Анализировать</button>
+    </form>
+</body>
+</html>

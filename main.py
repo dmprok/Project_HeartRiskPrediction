@@ -1,11 +1,16 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from joblib import load
 import pandas as pd
+import os
+import uuid
 import uvicorn
 import logging
 from encoder import CustomEncoder
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 logging.basicConfig(
     filename='log.txt',
@@ -14,10 +19,9 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-
 @app.get("/", tags=["Корневой каталог"], summary="Приветствие")
-def enter():
-    return "Hello stranger! Do you want to predict?"
+def enter(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 @app.post("/predict", tags=["Предсказания"], summary="Загрузка csv и выполнение предсказания")
 def predict_risk(file: UploadFile = File()):
     model = load('best_model.joblib')
@@ -33,26 +37,32 @@ def predict_risk(file: UploadFile = File()):
     try:
         data_prep = preprocessor.fit_transform(data)
         result = data[['id']]
-        prediction = model.predict(data_prep)
-        result.loc[:, 'prediction'] = prediction
-        name = str(file.filename)[:-4] + '_prediction.csv'
-        result.to_csv(name, index=False)
-        result_json = result.to_json(orient='records')
-        logging.info(f'successful processing file - {file.filename}')
-        return result_json
-    except:
-        logging.warning(f'file processing error - {file.filename}')
-        raise HTTPException(status_code=400, detail="Error")
+        predictions = model.predict(data_prep)
+        result['prediction'] = predictions
 
-@app.get("/predict/download", tags=["Предсказания"], summary="Выгрузка предсказания в csv")
-def get_predict_csv(file_name: str):
-    try:
-        result_name = file_name + '_prediction.csv'
-        logging.info(f'downloading {result_name}')
-        return FileResponse(result_name, filename=result_name)
-    except:
-        logging.info(f'downloading {result_name} error')
-        raise HTTPException(status_code=400, detail="File not found.")
+        unique_filename = f'{uuid.uuid4().hex}.csv'
+        result_path = os.path.join("predictions", unique_filename)
+        result.to_csv(result_path, index=False)
+        logging.info(f'Результат записан в файл: {unique_filename}')
+
+        download_url = f'http://localhost:8000/predict/download?filename={unique_filename}'
+
+        json_response = {
+            "status": "ok",
+            "download_link": download_url,
+            "results": result.to_dict(orient="records"),
+        }
+        return JSONResponse(content=json_response)
+    except Exception as e:
+        logging.warning(f'file processing error: {e}')
+        raise HTTPException(status_code=400, detail="File processing error")
+
+@app.get("/predict/download", response_class=FileResponse, tags=["Предсказания"], summary="Выгрузка предсказания в формате csv")
+def get_predict_csv(filename: str):
+    path_to_file = os.path.join("predictions", filename)
+    if not os.path.exists(path_to_file):
+        raise HTTPException(status_code=404, detail=f"File {path_to_file} not found")
+    return FileResponse(str(path_to_file), filename=filename)
 
 if __name__ == "__main__":
     uvicorn.run('main:app', host="0.0.0.0", port=8000, reload=True)
